@@ -1,0 +1,28 @@
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  version: default
+  resource: system_command
+  rules:
+    # Tier 1: Low risk, automatically allowed
+    - actions: ["execute"]
+      effect: EFFECT_ALLOW
+      roles: ["system_agent"]
+      condition:
+        match:
+          expr: request.resource.attr.risk_tier == "tier1"
+
+    # Tier 2: Medium risk, scoped allowed
+    - actions: ["execute"]
+      effect: EFFECT_ALLOW
+      roles: ["system_agent"]
+      condition:
+        match:
+          expr: request.resource.attr.risk_tier == "tier2"
+
+    # Tier 3: High risk, inherently denied by default without HITL flag
+    - actions: ["execute"]
+      effect: EFFECT_DENY
+      roles: ["system_agent"]
+      condition:
+        match:
+          expr: request.resource.attr.risk_tier == "tier3"

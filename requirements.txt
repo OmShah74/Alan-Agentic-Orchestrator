@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pydantic
+sqlalchemy
+psycopg2-binary
+redis
+openai
+anthropic
+google-generativeai
+groq
+composio
+loguru
+python-dotenv
+httpx
