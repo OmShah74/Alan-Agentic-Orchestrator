@@ -1,4 +1,4 @@
-from database.connection import redis_client
+from backend.database.connection import redis_client
 import time
 from loguru import logger
 

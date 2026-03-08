@@ -19,8 +19,11 @@ async def execute_tool(req: AgentRequest):
     params = req.parameters.get("params", {})
     
     try:
-        # Dynamically fetch the Composio Action enum
-        action_enum = getattr(Action, action_name.upper())
+        # Dynamically fetch the Composio Action enum, fallback to string
+        try:
+            action_enum = getattr(Action, action_name.upper())
+        except AttributeError:
+            action_enum = action_name.upper()
         
         # Execute the tool call
         result = toolset.execute_action(
@@ -33,8 +36,6 @@ async def execute_tool(req: AgentRequest):
             stdout=str(result), 
             stderr=""
         )
-    except AttributeError:
-        return AgentResponse(status="error", stdout="", stderr=f"Invalid action: {action_name} for app: {app_name}")
     except Exception as e:
         return AgentResponse(status="error", stdout="", stderr=str(e))
 

@@ -8,7 +8,7 @@ openai
 anthropic
 google-generativeai
 groq
-composio
+composio-core
 loguru
 python-dotenv
 httpx

@@ -1,25 +1,26 @@
 from fastapi import FastAPI
 import os
-from common.schemas import AgentRequest, AgentResponse
+from backend.subagents.common.schemas import AgentRequest, AgentResponse
 import uvicorn
 
 app = FastAPI()
 WORKSPACE_DIR = os.getenv("WORKSPACE_DIR", "/workspace")
 
-def is_safe_path(path: str) -> bool:
-    """Chroot-like security check to prevent directory traversal out of workspace"""
-    abs_path = os.path.abspath(path)
-    return abs_path.startswith(os.path.abspath(WORKSPACE_DIR))
+from backend.subagents.common.guardrails import evaluate_path_tier, check_permission
 
 @app.post("/execute", response_model=AgentResponse)
 async def execute_file_op(req: AgentRequest):
     action = req.action
     params = req.parameters
     
-    path = params.get("file_path", "")
-    if not is_safe_path(path):
-        return AgentResponse(status="error", stdout="", stderr="Security Exception: Path traversal attempt blocked.")
-
+    # Remove the old path restrictor. Implement Guardrail evaluation:
+    tier = evaluate_path_tier(action, path)
+    if not check_permission("file_operation", path, tier):
+        return AgentResponse(
+            status="error", 
+            stdout="", 
+            stderr=f"[GUARDRAIL BLOCKED - TIER: {tier}] You are attempting to modify a file outside the safe workspace: '{path}'. You MUST ask the human USER for explicit permission and provide this exact path snapshot before retrying."
+        )
     try:
         if action == "create_dir":
             os.makedirs(path, exist_ok=True)

@@ -96,7 +96,7 @@ class LLMRouter:
     def _call_openai(self, api_key: str, messages: List[Dict], system: Optional[str], max_tokens: int, temp: float, model: Optional[str]) -> str:
         client = openai.OpenAI(api_key=api_key)
         if system: messages = [{"role": "system", "content": system}] + messages
-        response = client.chat.completions.create(model=model or "gpt-4-turbo-preview", messages=messages, max_tokens=max_tokens, temperature=temp)
+        response = client.chat.completions.create(model=model or "gpt-4o", messages=messages, max_tokens=max_tokens, temperature=temp)
         return response.choices[0].message.content
     
     def _call_anthropic(self, api_key: str, messages: List[Dict], system: Optional[str], max_tokens: int, temp: float, model: Optional[str]) -> str:
@@ -107,7 +107,7 @@ class LLMRouter:
     def _call_groq(self, api_key: str, messages: List[Dict], system: Optional[str], max_tokens: int, temp: float, model: Optional[str]) -> str:
         client = Groq(api_key=api_key)
         if system: messages = [{"role": "system", "content": system}] + messages
-        response = client.chat.completions.create(model=model or "mixtral-8x7b-32768", messages=messages, max_tokens=max_tokens, temperature=temp)
+        response = client.chat.completions.create(model=model or "llama-3.3-70b-versatile", messages=messages, max_tokens=max_tokens, temperature=temp)
         return response.choices[0].message.content
     
     def _call_gemini(self, api_key: str, messages: List[Dict], system: Optional[str], max_tokens: int, temp: float, model_name: Optional[str]) -> str:

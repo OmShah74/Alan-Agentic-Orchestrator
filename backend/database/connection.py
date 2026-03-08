@@ -1,7 +1,7 @@
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from database.models import Base
+from backend.database.models import Base
 import redis
 
 # Postgres Setup

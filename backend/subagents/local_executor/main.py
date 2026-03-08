@@ -9,40 +9,19 @@ app = FastAPI()
 # Cerbos PDP url from docker-compose
 CERBOS_URL = "http://cerbos:3592/api/check"
 
-async def check_cerbos_policy(action: str, resource: str, risk_tier: str) -> bool:
-    """Check action against Cerbos Guardrails"""
-    payload = {
-        "principal": {"id": "alan_agent", "roles": ["system_agent"]},
-        "resource": {"kind": "system_command", "id": resource, "attr": {"risk_tier": risk_tier}},
-        "actions": [action]
-    }
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            res = await client.post(CERBOS_URL, json=payload)
-            # If cerbos returns allow, proceed. Else require HITL.
-            result = res.json()
-            # Simplistic check for demo (Requires fully fleshed Cerbos schema)
-            return True # Assuming safe for now, adjust based on strict cerbos parsing
-        except:
-            # Fail closed on policy engine error
-            return False
+from backend.subagents.common.guardrails import evaluate_command_tier, check_permission
 
 @app.post("/execute", response_model=AgentResponse)
 async def execute_local(req: AgentRequest):
     cmd = req.parameters.get("command", "")
-    risk_tier = req.parameters.get("risk_tier", "tier3") # Default to high risk
     
-    # 1. Policy Check
-    is_allowed = await check_cerbos_policy("execute", cmd, risk_tier)
-    
-    if not is_allowed or risk_tier == "tier3":
-        # Simulate Human In The Loop (HITL) Webhook
-        # In a real desktop app, this would fire a webhook to the Windows 11 UI
+    # 1. New Guardrails Check replacing Cerbos
+    tier = evaluate_command_tier(cmd)
+    if not check_permission("local_execution", cmd, tier):
         return AgentResponse(
             status="error",
             stdout="",
-            stderr="[GUARDRAIL BLOCKED] Tier 3 action requires Human Approval. Please verify via Desktop UI."
+            stderr=f"[GUARDRAIL BLOCKED - TIER: {tier}] You are attempting to execute a potentially unsafe system command on the Local Machine: '{cmd}'. You MUST ask the human USER for explicit permission through the chat and provide this exact command snapshot before retrying."
         )
 
     # 2. Execution (If Allowed)

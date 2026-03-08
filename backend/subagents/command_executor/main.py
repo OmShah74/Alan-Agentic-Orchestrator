@@ -1,11 +1,13 @@
 import subprocess
 from fastapi import FastAPI, HTTPException
 import os
-from common.schemas import AgentRequest, AgentResponse
+from backend.subagents.common.schemas import AgentRequest, AgentResponse
 import uvicorn
 
 app = FastAPI()
 WORKSPACE_DIR = os.getenv("WORKSPACE_DIR", "/workspace")
+
+from backend.subagents.common.guardrails import evaluate_command_tier, check_permission
 
 @app.post("/execute", response_model=AgentResponse)
 async def execute_command(req: AgentRequest):
@@ -14,6 +16,15 @@ async def execute_command(req: AgentRequest):
     
     cmd = req.parameters.get("command")
     working_dir = req.parameters.get("working_dir", WORKSPACE_DIR)
+
+    # SECURE INTERCEPT
+    tier = evaluate_command_tier(cmd)
+    if not check_permission("command_execution", cmd, tier):
+        return AgentResponse(
+            status="error",
+            stdout="",
+            stderr=f"[GUARDRAIL BLOCKED - TIER: {tier}] You are attempting to run a potentially unsafe command: '{cmd}'. You MUST ask the human USER for explicit permission and provide this exact command snapshot before retrying."
+        )
 
     try:
         # Secure subprocess execution

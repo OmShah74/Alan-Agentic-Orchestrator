@@ -22,7 +22,7 @@ services:
       context: .
       dockerfile: backend/orchestrator/Dockerfile # (Can use standard python:3.11-slim)
     ports:
-      - "8000:8000"
+      - "8080:8000"
     volumes:
       - ./backend:/app/backend
       - ./workspace:/app/workspace
@@ -32,21 +32,68 @@ services:
     environment:
       - POSTGRES_HOST=postgres
       - REDIS_HOST=redis
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PREFERRED_PROVIDER=${PREFERRED_PROVIDER:-GROQ}
       
   # Subagents exposed internally to Alan
   command_executor:
-    build: ./backend/subagents/command_executor
+    build: 
+      context: .
+      dockerfile: backend/subagents/command_executor/Dockerfile
     volumes:
       - ./workspace:/workspace
+      - ./backend:/app/backend
+      - C:\:/host_c
     ports:
       - "8001:8001"
 
   file_operator:
-    build: ./backend/subagents/file_operator
+    build: 
+      context: .
+      dockerfile: backend/subagents/file_operator/Dockerfile
     volumes:
       - ./workspace:/workspace
+      - ./backend:/app/backend
+      - C:\:/host_c
     ports:
       - "8002:8002"
+
+  code_executor:
+    build: 
+      context: .
+      dockerfile: backend/subagents/code_executor/Dockerfile
+    volumes:
+      - ./workspace:/app/workspace
+      - ./backend:/app/backend
+      - C:\:/host_c
+    ports:
+      - "8003:8003"
+
+  tool_executor:
+    build: 
+      context: .
+      dockerfile: backend/subagents/tool_executor/Dockerfile
+    volumes:
+      - ./workspace:/app/workspace
+      - ./backend:/app/backend
+    ports:
+      - "8004:8004"
+    environment:
+      - COMPOSIO_API_KEY=${COMPOSIO_API_KEY}
+
+  local_executor:
+    build: 
+      context: .
+      dockerfile: backend/subagents/local_executor/Dockerfile
+    volumes:
+      - ./workspace:/app/workspace
+      - ./backend:/app/backend
+      - C:\:/host_c
+    ports:
+      - "8005:8005"
 
 volumes:
   pgdata:
