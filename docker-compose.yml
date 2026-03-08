@@ -20,7 +20,7 @@ services:
   alan_orchestrator:
     build: 
       context: .
-      dockerfile: backend/orchestrator/Dockerfile # (Can use standard python:3.11-slim)
+      dockerfile: backend/orchestrator/Dockerfile
     ports:
       - "8080:8000"
     volumes:
@@ -94,6 +94,18 @@ services:
       - C:\:/host_c
     ports:
       - "8005:8005"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8080
+    depends_on:
+      - alan_orchestrator
 
 volumes:
   pgdata:
