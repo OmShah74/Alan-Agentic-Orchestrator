@@ -109,6 +109,56 @@ export async function checkHealth(): Promise<boolean> {
   } catch { return false; }
 }
 
+// ─── API Key Management ────────────────────────────────────────
+
+export interface APIKeyInfo {
+  name: string;
+  masked_key: string;
+  model_name: string | null;
+  active: boolean;
+  request_count: number;
+  error_count: number;
+  last_used: number;
+}
+
+export async function fetchAPIKeys(): Promise<Record<string, APIKeyInfo[]>> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/keys`);
+    if (!res.ok) return {};
+    return res.json();
+  } catch { return {}; }
+}
+
+export async function addAPIKey(provider: string, name: string, key: string, modelName?: string): Promise<{status: string}> {
+  const res = await fetch(`${API_BASE}/api/v1/keys`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider, name, key, model_name: modelName || null }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to add key");
+  }
+  return res.json();
+}
+
+export async function removeAPIKey(provider: string, name: string): Promise<void> {
+  await fetch(`${API_BASE}/api/v1/keys`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider, name }),
+  });
+}
+
+export async function validateAPIKey(provider: string, key: string, modelName?: string): Promise<{valid: boolean; message: string}> {
+  const res = await fetch(`${API_BASE}/api/v1/keys/validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider, key, model_name: modelName || null }),
+  });
+  return res.json();
+}
+
 // ─── WebSocket ──────────────────────────────────────────────────
 
 export function createChatWebSocket(

@@ -13,26 +13,12 @@ from backend.orchestrator.prompts import ORCHESTRATOR_SYSTEM_PROMPT
 
 class AlanOrchestrator:
     def __init__(self):
-        provider_env = os.getenv("PREFERRED_PROVIDER", "GROQ").upper()
-        try:
-            preferred_provider = LLMProvider[provider_env]
-        except KeyError:
-            preferred_provider = LLMProvider.GROQ
-
-        config = LLMConfig(preferred_provider=preferred_provider)
+        config = LLMConfig(preferred_provider=LLMProvider.GROQ)
         self.router = LLMRouter(config=config)
-
-        api_keys = {
-            LLMProvider.GROQ: os.getenv("GROQ_API_KEY"),
-            LLMProvider.ANTHROPIC: os.getenv("ANTHROPIC_API_KEY"),
-            LLMProvider.OPENAI: os.getenv("OPENAI_API_KEY"),
-            LLMProvider.GEMINI: os.getenv("GEMINI_API_KEY"),
-        }
-        placeholders = ["your-openai-key", "your-anthropic-key", "your_gemini_key", "your-groq-key", "your_api_key"]
-        for provider, key in api_keys.items():
-            if key and not any(p in key.lower() for p in placeholders):
-                self.router.add_api_key(provider, "main_env", key)
-                logger.info(f"Registered {provider.name} for dynamic rotation.")
+        # Keys are loaded from persistent JSON file by the router automatically.
+        # Users manage keys via the API Keys panel in the frontend.
+        key_count = sum(len(v) for v in self.router.config.instances.values())
+        logger.info(f"Router initialized with {key_count} API keys from persistent storage.")
 
         self.agent_urls = {
             "command_executor": "http://command_executor:8001/execute",

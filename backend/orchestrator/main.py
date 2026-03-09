@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.orchestrator.alan_agent import AlanOrchestrator
 from backend.database.connection import init_db, SessionLocal
 from backend.database.models import Conversation, Message, Task, Step
+from backend.core_router.models import LLMProvider
 from pydantic import BaseModel
 from typing import Optional
 from loguru import logger
@@ -30,6 +31,68 @@ class TaskRequest(BaseModel):
 
 class CancelRequest(BaseModel):
     conversation_id: str
+
+class AddKeyRequest(BaseModel):
+    provider: str   # "groq", "openai", "anthropic", "gemini", "openrouter"
+    name: str       # e.g. "groq_key_1"
+    key: str        # The actual API key
+    model_name: Optional[str] = None
+
+class RemoveKeyRequest(BaseModel):
+    provider: str
+    name: str
+
+class ValidateKeyRequest(BaseModel):
+    provider: str
+    key: str
+    model_name: Optional[str] = None
+
+
+# ─── API Key Management ─────────────────────────────────────────
+@app.get("/api/v1/keys")
+async def list_api_keys():
+    """List all configured API keys (masked)."""
+    return alan.router.list_keys()
+
+@app.post("/api/v1/keys")
+async def add_api_key(req: AddKeyRequest):
+    """Add a new API key."""
+    try:
+        provider = LLMProvider(req.provider.lower())
+    except ValueError:
+        raise HTTPException(400, f"Invalid provider: {req.provider}. Valid: groq, openai, anthropic, gemini, openrouter")
+    
+    instance = alan.router.add_api_key(provider, req.name, req.key, req.model_name)
+    return {
+        "status": "added",
+        "provider": req.provider,
+        "name": req.name,
+        "masked_key": req.key[:8] + "..." + req.key[-4:] if len(req.key) > 12 else "***"
+    }
+
+@app.delete("/api/v1/keys")
+async def remove_api_key(req: RemoveKeyRequest):
+    """Remove an API key."""
+    try:
+        provider = LLMProvider(req.provider.lower())
+    except ValueError:
+        raise HTTPException(400, f"Invalid provider: {req.provider}")
+    
+    removed = alan.router.remove_api_key(provider, req.name)
+    if not removed:
+        raise HTTPException(404, f"Key '{req.name}' not found for provider '{req.provider}'")
+    return {"status": "removed", "provider": req.provider, "name": req.name}
+
+@app.post("/api/v1/keys/validate")
+async def validate_api_key(req: ValidateKeyRequest):
+    """Validate an API key by making a minimal test request."""
+    try:
+        provider = LLMProvider(req.provider.lower())
+    except ValueError:
+        raise HTTPException(400, f"Invalid provider: {req.provider}")
+    
+    result = alan.router.validate_key(provider, req.key, req.model_name)
+    return result
 
 
 # ─── Conversations ───────────────────────────────────────────────
@@ -189,7 +252,15 @@ async def websocket_chat(websocket: WebSocket, conversation_id: str):
 
             except Exception as e:
                 logger.error(f"WebSocket task error: {e}")
-                err_content = f"Error: {str(e)}"
+                err_str = str(e)
+                # Clean up error messages for the user
+                if "No API keys configured" in err_str:
+                    err_content = "No API keys configured. Please add your API keys through Settings > API Keys."
+                elif "All LLM providers failed" in err_str:
+                    err_content = "All API keys exhausted or failed. Please check your keys in Settings > API Keys."
+                else:
+                    err_content = f"Error: {err_str}"
+                
                 err_msg = Message(conversation_id=conversation_id, role="assistant", content=err_content)
                 db.add(err_msg)
                 db.commit()
@@ -209,7 +280,8 @@ async def websocket_chat(websocket: WebSocket, conversation_id: str):
 # ─── Health ──────────────────────────────────────────────────────
 @app.get("/api/v1/health")
 async def health():
-    return {"status": "healthy", "service": "alan_orchestrator"}
+    key_count = sum(len(v) for v in alan.router.config.instances.values())
+    return {"status": "healthy", "service": "alan_orchestrator", "api_keys_configured": key_count}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

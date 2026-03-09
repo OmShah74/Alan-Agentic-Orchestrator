@@ -83,6 +83,7 @@ services:
       - "8004:8004"
     environment:
       - COMPOSIO_API_KEY=${COMPOSIO_API_KEY}
+      - COMPOSIO_ENTITY_ID=${COMPOSIO_ENTITY_ID:-default}
 
   local_executor:
     build: 
