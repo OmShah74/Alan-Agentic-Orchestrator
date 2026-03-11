@@ -9,13 +9,27 @@ app = FastAPI()
 
 # Requires COMPOSIO_API_KEY in environment
 COMPOSIO_API_KEY = os.getenv("COMPOSIO_API_KEY")
-# Entity ID for connected accounts — matches what was used in Composio dashboard
-COMPOSIO_ENTITY_ID = os.getenv("COMPOSIO_ENTITY_ID", "default")
+# Entity ID for connected accounts - matches what was used in Composio dashboard
+COMPOSIO_ENTITY_ID = os.getenv("COMPOSIO_ENTITY_ID", "pg-test-078eaf96-0ebd-4653-9b2d-f090171987dc")
 
 toolset = ComposioToolSet(
     api_key=COMPOSIO_API_KEY,
     entity_id=COMPOSIO_ENTITY_ID,
 )
+
+if not COMPOSIO_API_KEY:
+    logger.warning("COMPOSIO_API_KEY is not set. Composio calls will fail.")
+
+if COMPOSIO_ENTITY_ID == "ca_zL0GA4wB6ctZ":
+    logger.warning(
+        "COMPOSIO_ENTITY_ID is using the built-in fallback. "
+        "Set COMPOSIO_ENTITY_ID in the environment if your connections use a different entity."
+    )
+elif COMPOSIO_ENTITY_ID == "default":
+    logger.warning(
+        "COMPOSIO_ENTITY_ID is not set; using default. "
+        "If your connections are under a different entity, tools will report no connected account."
+    )
 
 # Map of known action name patterns to handle fuzzy matching
 KNOWN_ACTIONS = {
@@ -87,14 +101,59 @@ def _resolve_action(action_name: str):
     return name
 
 
+def _summarize_entity_connections(entity) -> str:
+    try:
+        connections = None
+        if hasattr(entity, "connections"):
+            connections = entity.connections
+        elif hasattr(entity, "get_connections"):
+            connections = entity.get_connections()
+
+        if connections is None:
+            return "Connected apps: <unknown>"
+
+        if not connections:
+            return "Connected apps: none"
+
+        app_names = set()
+        for conn in connections:
+            if isinstance(conn, dict):
+                for key in ("app", "app_name", "app_slug"):
+                    val = conn.get(key)
+                    if val:
+                        app_names.add(str(val))
+                        break
+            else:
+                for attr in ("app", "app_name", "app_slug"):
+                    if hasattr(conn, attr):
+                        val = getattr(conn, attr)
+                        if val:
+                            app_names.add(str(val))
+                            break
+
+        if app_names:
+            return "Connected apps: " + ", ".join(sorted(app_names))
+
+        return f"Connected apps: {len(connections)} (apps not exposed)"
+    except Exception as e:
+        return f"Connected apps: <error reading connections: {e}>"
+
+
 def _get_connected_account(app_name: str):
     """Try to find a connected account for the given app."""
+    entity = None
     try:
         entity = toolset.client.get_entity(id=COMPOSIO_ENTITY_ID)
         connection = entity.get_connection(app=app_name)
         return connection
     except Exception as e:
-        logger.warning(f"Could not find connection for {app_name}: {e}")
+        summary = ""
+        if entity is not None:
+            summary = _summarize_entity_connections(entity)
+        logger.warning(
+            f"Could not find connection for {app_name} on entity '{COMPOSIO_ENTITY_ID}'. "
+            f"{summary} Error: {e}"
+        )
         return None
 
 
@@ -117,6 +176,13 @@ async def execute_tool(req: AgentRequest):
       - action="GMAIL_SEND_EMAIL" with parameters as direct tool params (new)
     """
     try:
+        if not COMPOSIO_API_KEY:
+            return AgentResponse(
+                status="error",
+                stdout="",
+                stderr="COMPOSIO_API_KEY is not set in the environment for tool_executor."
+            )
+
         # Determine the actual action and params
         if req.action == "execute_tool":
             action_name = req.parameters.get("action_name", "")
@@ -180,8 +246,10 @@ async def execute_tool(req: AgentRequest):
             # Extract the app name from the error
             error_msg = (
                 f"Connection error: {error_msg}. "
-                "This tool needs to be re-authorized through the Composio dashboard at https://app.composio.dev. "
-                "Do NOT try to run 'composio add' commands — they won't work in this environment."
+                f"Current COMPOSIO_ENTITY_ID='{COMPOSIO_ENTITY_ID}'. "
+                "Verify the account is connected under this entity in the Composio dashboard "
+                "and restart the services after updating env vars. "
+                "Do NOT try to run 'composio add' commands - they won't work in this environment."
             )
         elif "Could not find connection" in error_msg:
             error_msg = (

@@ -36,10 +36,10 @@ def evaluate_command_tier(command: str) -> str:
 
 def evaluate_path_tier(action: str, file_path: str) -> str:
     """Evaluate a file operation. More permissive for /host_c/ paths (user explicitly mounted)."""
-    if action == "read_file" or action == "list_dir":
+    if action == "read_file" or action == "list_dir" or action == "find_file":
         return TIER_1_SAFE
 
-    if action in ["write_file", "create_dir"]:
+    if action in ["write_file", "create_dir", "move_file"]:
         # Docker workspace = always safe
         if file_path.startswith("/workspace") or file_path.startswith("/app"):
             return TIER_1_SAFE
