@@ -29,6 +29,7 @@ export default function APIKeysPanel({ isOpen, onClose }: APIKeysPanelProps) {
   const [addingProvider, setAddingProvider] = useState<string | null>(null);
   const [newKeyValue, setNewKeyValue] = useState("");
   const [newKeyName, setNewKeyName] = useState("");
+  const [newKeyModel, setNewKeyModel] = useState("");
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<{ valid: boolean; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -57,7 +58,7 @@ export default function APIKeysPanel({ isOpen, onClose }: APIKeysPanelProps) {
     setValidating(true);
     setValidationResult(null);
     try {
-      const result = await validateAPIKey(addingProvider, newKeyValue.trim());
+      const result = await validateAPIKey(addingProvider, newKeyValue.trim(), newKeyModel.trim() || undefined);
       setValidationResult(result);
     } catch {
       setValidationResult({ valid: false, message: "Validation request failed" });
@@ -69,10 +70,11 @@ export default function APIKeysPanel({ isOpen, onClose }: APIKeysPanelProps) {
     if (!addingProvider || !newKeyValue.trim()) return;
     const name = newKeyName.trim() || `${addingProvider}_key_${Date.now().toString(36)}`;
     try {
-      await addAPIKey(addingProvider, name, newKeyValue.trim());
+      await addAPIKey(addingProvider, name, newKeyValue.trim(), newKeyModel.trim() || undefined);
       setAddingProvider(null);
       setNewKeyValue("");
       setNewKeyName("");
+      setNewKeyModel("");
       setValidationResult(null);
       await loadKeys();
     } catch (e) {
@@ -152,7 +154,7 @@ export default function APIKeysPanel({ isOpen, onClose }: APIKeysPanelProps) {
                     }`}>
                       {providerKeys.length > 0 ? `${providerKeys.length} key${providerKeys.length > 1 ? "s" : ""}` : "No keys"}
                     </span>
-                    <button onClick={() => { setAddingProvider(isAdding ? null : provider.id); setNewKeyValue(""); setNewKeyName(""); setValidationResult(null); }}
+                    <button onClick={() => { setAddingProvider(isAdding ? null : provider.id); setNewKeyValue(""); setNewKeyName(""); setNewKeyModel(""); setValidationResult(null); }}
                       className={`px-2 py-1 rounded-lg text-[9px] font-medium transition-all border ${
                         isAdding
                           ? "border-[var(--accent-red)] text-[var(--accent-red)] hover:bg-[var(--accent-red-dim)]"
@@ -168,14 +170,21 @@ export default function APIKeysPanel({ isOpen, onClose }: APIKeysPanelProps) {
                   <div className="border-t border-[var(--border-color)]">
                     {providerKeys.map((k, idx) => (
                       <div key={k.name} className="px-4 py-2 flex items-center justify-between border-b border-[var(--border-color)] last:border-0 hover:bg-[var(--bg-hover)] transition-colors">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-                          <span className="text-[11px] text-[var(--text-primary)] font-medium">{k.name}</span>
-                          <code className="text-[10px] text-[var(--text-dim)] font-mono">{k.masked_key}</code>
-                          {k.request_count > 0 && (
-                            <span className="text-[8px] text-[var(--text-dim)]">{k.request_count} requests</span>
-                          )}
-                          <span className="text-[8px] text-[var(--text-dim)]">#{idx + 1} priority</span>
+                        <div className="flex flex-col gap-1 min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+                            <span className="text-[11px] text-[var(--text-primary)] font-medium">{k.name}</span>
+                            <code className="text-[10px] text-[var(--text-dim)] font-mono">{k.masked_key}</code>
+                            {k.request_count > 0 && (
+                              <span className="text-[8px] text-[var(--text-dim)]">{k.request_count} requests</span>
+                            )}
+                            <span className="text-[8px] text-[var(--text-dim)] hidden sm:inline">#{idx + 1} priority</span>
+                          </div>
+                          <div className="flex items-center gap-1 pl-3.5">
+                            <span className="px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[9px] text-[var(--text-secondary)] font-mono border border-[var(--border-color)]">
+                              {k.model_name || provider.model}
+                            </span>
+                          </div>
                         </div>
                         <button onClick={() => handleRemoveKey(provider.id, k.name)}
                           className="px-2 py-0.5 rounded text-[9px] text-red-400 hover:bg-red-500/10 transition-colors border border-red-500/20">
@@ -190,21 +199,30 @@ export default function APIKeysPanel({ isOpen, onClose }: APIKeysPanelProps) {
                 {isAdding && (
                   <div className="px-4 py-3 border-t border-[var(--accent-purple)]/20 fade-in" style={{ background: "var(--accent-purple-glow)" }}>
                     <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={newKeyName}
-                          onChange={e => setNewKeyName(e.target.value)}
-                          placeholder={`${provider.id}_key_${providerKeys.length + 1}`}
-                          className="w-36 px-2 py-1.5 rounded-lg text-[11px] bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder-[var(--text-dim)] outline-none focus:border-[var(--accent-purple)] font-mono"
-                        />
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newKeyName}
+                            onChange={e => setNewKeyName(e.target.value)}
+                            placeholder={`${provider.id}_key_${providerKeys.length + 1}`}
+                            className="w-1/3 px-2 py-1.5 rounded-lg text-[11px] bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder-[var(--text-dim)] outline-none focus:border-[var(--accent-purple)] font-mono"
+                          />
+                          <input
+                            type="text"
+                            value={newKeyModel}
+                            onChange={e => { setNewKeyModel(e.target.value); setValidationResult(null); }}
+                            placeholder={`Model (default: ${provider.model})`}
+                            className="w-2/3 px-2 py-1.5 rounded-lg text-[11px] bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder-[var(--text-dim)] outline-none focus:border-[var(--accent-purple)] font-mono"
+                          />
+                        </div>
                         <input
                           type="password"
                           value={newKeyValue}
                           onChange={e => { setNewKeyValue(e.target.value); setValidationResult(null); }}
                           placeholder="Paste your API key..."
                           autoFocus
-                          className="flex-1 px-2 py-1.5 rounded-lg text-[11px] bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder-[var(--text-dim)] outline-none focus:border-[var(--accent-purple)] font-mono"
+                          className="w-full px-2 py-1.5 rounded-lg text-[11px] bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder-[var(--text-dim)] outline-none focus:border-[var(--accent-purple)] font-mono"
                           onKeyDown={e => { if (e.key === "Enter") handleAddKey(); }}
                         />
                       </div>
