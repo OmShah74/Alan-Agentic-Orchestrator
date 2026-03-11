@@ -18,7 +18,7 @@ def evaluate_command_tier(command: str) -> str:
             return TIER_4_CRIT
 
     # Tier 1: Safe read commands
-    safe_starts = ["ls", "dir", "echo", "cat", "pwd", "whoami", "python -c", "node -e",
+    safe_starts = ["ls", "dir", "echo", "cat", "pwd", "whoami", "python -c", "python", "node -e",
                    "head", "tail", "wc", "find", "which", "type", "stat", "file"]
     for s in safe_starts:
         if cmd_lower.startswith(s):

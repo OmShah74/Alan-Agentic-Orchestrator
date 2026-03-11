@@ -14,14 +14,35 @@ from backend.subagents.common.guardrails import evaluate_command_tier, check_per
 def _translate_win_path(cmd: str) -> str:
     """Translate Windows paths in commands to Docker-mounted /host_c/ paths."""
     import re
-    # Match C:\path or C:/path patterns
+    
     def replace_path(m):
         drive = m.group(1).lower()
+        # The remainder of the path might have spaces if it was quoted or just bare
         rest = m.group(2).replace("\\", "/")
-        return f"/host_{drive}/{rest}"
+        mapped = f"/host_{drive}/{rest}"
+        # If there's a space, auto-quote it for shell execution
+        if " " in mapped and not mapped.startswith('"') and not mapped.startswith("'"):
+            return f'"{mapped}"'
+        return mapped
     
-    cmd = re.sub(r'([A-Za-z]):\\([^\s"\']+)', replace_path, cmd)
-    cmd = re.sub(r'([A-Za-z]):/([^\s"\']+)', replace_path, cmd)
+    # Match C:\... or C:/... taking as much as possible until a quote or common delimiter 
+    # (simplistic approach: match until " ' or end of string, assuming no spaces after path)
+    # Actually, a better approach for simple command strings is to handle explicit quotes or greedy match.
+    # Let's match typical Windows paths: C:\Folder\Name or "C:\Folder\Name"
+    
+    # 1. Match already quoted paths (e.g. "C:\Users\OM SHAH\...")
+    def replace_quoted_path(m):
+        quote = m.group(1)
+        drive = m.group(2).lower()
+        rest = m.group(3).replace("\\", "/")
+        return f'{quote}/host_{drive}/{rest}{quote}'
+        
+    cmd = re.sub(r'([\'"])([A-Za-z]):[\\/](.*?)\1', replace_quoted_path, cmd)
+    
+    # 2. Match unquoted paths (e.g. C:\Users\OM SHAH\...)
+    # This greedy regex assumes the path ends at the end of the string, or at a specific delimiter if we add one.
+    cmd = re.sub(r'(?<![\'"])([A-Za-z]):[\\/]([A-Za-z0-9_.\s\\-]+)', replace_path, cmd)
+    
     return cmd
 
 
